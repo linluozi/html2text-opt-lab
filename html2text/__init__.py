@@ -200,17 +200,8 @@ class HTML2Text(html.parser.HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         self.handle_tag(tag, {}, start=False)
 
-    def previousIndex(self, attrs: Dict[str, Optional[str]]) -> Optional[int]:
-        """
-        :type attrs: dict
-
-        :returns: The index of certain set of attributes (of a link) in the
-        self.a list. If the set of attributes is not found, returns None
-        :rtype: int
-        """
-        if "href" not in attrs:
-            return None
-
+    def _scan_previous_index(self, attrs: Dict[str, Optional[str]]) -> Optional[int]:
+        """Upstream linear scan, kept as the correctness fallback."""
         match = False
         for i, a in enumerate(self.a):
             if "href" in a.attrs and a.attrs["href"] == attrs["href"]:
@@ -225,6 +216,59 @@ class HTML2Text(html.parser.HTMLParser):
                     match = True
 
             if match:
+                return i
+        return None
+
+    def _href_index(self) -> Dict[str, List[int]]:
+        """``href -> in-order indices`` map for ``self.a``, maintained incrementally.
+
+        ``self.a`` is only ever appended to or replaced wholesale by the
+        per-paragraph flush in :meth:`o`, so appends extend the index and a
+        changed list object / shrunken length forces a rebuild.
+        """
+        a = self.a
+        index = getattr(self, "_a_index", None)
+        if (
+            index is None
+            or getattr(self, "_a_index_id", None) != id(a)
+            or getattr(self, "_a_index_len", 0) > len(a)
+        ):
+            index = {}
+            start = 0
+        else:
+            start = getattr(self, "_a_index_len", 0)
+        for i in range(start, len(a)):
+            if "href" in a[i].attrs:
+                index.setdefault(a[i].attrs["href"], []).append(i)
+        self._a_index = index
+        self._a_index_id = id(a)
+        self._a_index_len = len(a)
+        return index
+
+    def previousIndex(self, attrs: Dict[str, Optional[str]]) -> Optional[int]:
+        """
+        :type attrs: dict
+
+        :returns: The index of certain set of attributes (of a link) in the
+        self.a list. If the set of attributes is not found, returns None
+        :rtype: int
+        """
+        if "href" not in attrs:
+            return None
+
+        for i in self._href_index().get(attrs["href"], ()):
+            a = self.a[i]
+            if "href" not in a.attrs or a.attrs["href"] != attrs["href"]:
+                # self.a was mutated in place behind our back: stay correct.
+                return self._scan_previous_index(attrs)
+            if "title" in a.attrs or "title" in attrs:
+                if (
+                    "title" in a.attrs
+                    and "title" in attrs
+                    and a.attrs["title"] == attrs["title"]
+                ):
+                    return i
+            else:
                 return i
         return None
 
