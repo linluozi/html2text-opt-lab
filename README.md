@@ -18,8 +18,8 @@ Upstream: https://github.com/Alir3z4/html2text
 
 **新在哪 / 和谁不一样 / 凭什么。** 之前的 `-opt-lab` 只报“合成负载上快了多少”。
 本仓库给出的是**标度指数证书 + 真实语料对照**，结论是负面的、可证伪的：
-`previousIndex()` 在**互异 href 数**上是货真价实的二次（相邻倍率 1.40→1.62→1.72→1.88，
-顶段逼近 2.0），改后整体指数 1.004；**但真实 HTML 文档几乎拿不到收益**
+`previousIndex()` 在**互异 href 数**上是货真价实的二次（每翻倍标度指数 = log2 相邻比
+1.40→1.62→1.72→1.88，顶段逼近 2.0；原始相邻比见下表 2.65→3.68），改后整体指数 1.004；**但真实 HTML 文档几乎拿不到收益**
 （Node.js API 文档 0.977×–1.001×，上游 74 个真实 fixture 0.993×）。
 即：这是一个**渐进保险（asymptotic insurance）**，不是日常提速。台账里 7 个 algo
 lab 没有一个给出过“修完了但真实语料没收益”的量化结论；本仓库把“差异在哪个维度上
@@ -28,7 +28,7 @@ lab 没有一个给出过“修完了但真实语料没收益”的量化结论�
 ## 复现（3 条命令）
 
 ```bash
-git clone git@github-linluozi:linluozi/html2text-opt-lab.git && cd html2text-opt-lab
+git clone https://github.com/linluozi/html2text-opt-lab.git && cd html2text-opt-lab
 python3 -m venv .venv && .venv/bin/pip install -e . pytest
 .venv/bin/python tests/test_diff.py && .venv/bin/python benchmark/bench.py --impl optimized --sweep --real-dir test
 ```
@@ -37,7 +37,7 @@ python3 -m venv .venv && .venv/bin/pip install -e . pytest
 
 同一份 `benchmark/bench.py`，同一台机器、同一 CPython，改动前后各跑一次。
 每规模先 warmup 3 次再计时 7 次；报告**中位数 + p25/p75**。原始样本在
-`benchmark/raw/`（baseline 与 optimized 各 55 个文件），聚合值在
+`benchmark/raw/`（baseline 与 optimized 各 66 个文件，共 132 个），聚合值在
 `benchmark/baseline.json` / `benchmark/optimized.json`。
 
 合成负载：N 个 `<a>`，每个 href 互异，全部在一个段落内（不触发刷写），
@@ -62,10 +62,12 @@ python3 -m venv .venv && .venv/bin/pip install -e . pytest
 | 2000 | 0.278542 | 0.063402 | 3.30 | 2.02 |
 | 4000 | 1.024325 | 0.126404 | 3.68 | 1.99 |
 
-- baseline 最小二乘 log–log 斜率 = **1.658**；相邻倍率单调上升（1.40→1.62→1.72→1.88），
-  顶段逼近 2.0 —— 即二次项在 n 较大时才主导（文档解析是线性的，会摊薄整体指数）。
+- baseline 最小二乘 log–log 斜率 = **1.658**；每翻倍标度指数（= log2 相邻比）
+  1.40→1.62→1.72→1.88 单调上升，顶段逼近 2.0 —— 即二次项在 n 较大时才主导
+  （文档解析是线性的，会摊薄整体指数）。注意上表的“相邻倍率”是原始比值（2.65→3.68），
+  本行的 1.40→1.88 是它们的 log2，两者不是一个量纲。
   按昨晚计划“整体指数 ≥1.80 才准写超线性”的口径：**整体 1.658 < 1.80，所以本 README
-  不声称“超线性”**，只报告相邻倍率证据。
+  不声称“超线性”**，只报告相邻倍率与每翻倍指数证据。
 - optimized 斜率 = **1.004**（每个区间都在 1.99–2.02，即线性）。
 
 ### 真实语料（同一 bench，`--real` / `--real-dir`）
